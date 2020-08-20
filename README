@@ -1,0 +1,122 @@
+TC35874 to UVC gadget application README 
+by Kin Wei Lee
+
+
+Orignal work
+============
+UVC original work by
+Laurent Pinchart ideasonboard.com  
+and patches by Bhupesh Sharma 
+but conveniently collated by jdonald (github.com/jdonald/uvc-gadget)
+V4L2 MMAL original work by
+6by9 github.com/6by9/v4l2_mmal
+
+Overview
+=======
+This software uses a Raspberry Pi Zero and a TC35874 bridge to convert an HDMI
+source signal and output the video over USB so that it can be used as a USB 
+webcam.
+
+
+Introduction
+============
+
+This README file documents the v4l2-mmal-uvc application available
+here git://, which can be used to
+create a UVC webcam gadget using a HDMI input as the source video.
+HDMI conversion utilises a TC35874 HDMI to CSI-2 converter.
+
+The TC35874 outputs UYVY or RGB24 data to the CSI-2 camera port and which is 
+incompatible with UVC gadget, which requires YUYV formatted data.
+
+By using the MMAL framework, supported by the Raspberry Pi Zero, hardware 
+conversion of UYVY/RG24 data to YUYV data can be performed. 
+
+Setup
+=====
+v4l2-ctl --set-edid=file=./1080P50EDID.txt --fix-edid-checksums 
+v4l2-ctl --query-dv-timings
+v4l2-ctl --set-dv-bt-timings query
+modprobe g_webcam streaming_maxpacket=2048
+./v4l2-mmal-uvc -v /dev/video0 -u /dev/video1 -n3 # -v is camera device -u is g_webcam device
+
+NOTES
+==========
+
+Audio is NOT handled.
+
+This software basically splices (hacked and diced with a very blunt blade) the
+V4L2 mmal part of v4l2-mmal by 6by9 and with the UVC part of uvc-gadget by 
+Laurent Pinchart.
+v4l2-mmal has video output and H264 encoding but this has been removed, as we
+only need the ISP to do the RGB24/UYVY to YUYV format conversion.
+
+V4L2 capture uses V4L2_MEMORY_MMAP, DMA is used to transfer this to VC
+(Raspberry Pi video core) and UVC output uses V4L2_MEMORY_USERPTR.
+
+Internally the code will select UYVY output from TC35874 (RGB24 can be used
+too).
+
+Resolution:
+Resolution presented to UVC is fixed at 1280x720.
+Only raw YUYV data is presented to UVC, MJPEG is not used.
+ISOCH USB transfers work.
+BULK mode transfer does not work.
+
+Framerate:
+The max framerate is about 8.8fps, (I think) it's limited to UBR microframe 
+period and streaming_maxpacket size for g_webcam.
+microframe period = 125us (ISOCH transfer)
+image size = 1280*720*2
+streaming_maxpacket = 2048
+framerate = 1/(1280*720*2/2048*125e-6) = 8.8fps
+
+ConfigFS can be used and does work but g_webcam is much easier to setup.
+
+Pipe Setup:
+V4L2 -> isp -> UVC 
+
+The software may or may not work for you and it may kill your hardware. My first
+PiZero's USB OTG functionality died during development. Essentially it no longer
+works in gadget mode. The cause could have come from power coming from two 
+different sources into the Pi Zero.
+
+Issues
+=======
+
+Stopping and restarting a stream doesn't work. It may be necessary to quit
+v4l2-mmal-uvc and the webcam viewer (e.g. QuickTime player) before a new stream
+can be viewed.
+
+Compiling reveals alot of warnings.
+
+Test Setup
+===============
+Hardware
+-H2C-RPI0-B01 HDMI to CSI-2 Bridge using TC358743 (same foot print as Pi Zero)
+-Pi Zero W (4.19.122+ recompiled from source using rpi-4.19.y branch)
+
+Input HDMI sources:
+-PC 1280x720 and 1920x1080 ok
+-EOS M - 720x480 interlaced signal needs code modification to use interlace mode
+(V4L2_FIELD_INTERLACED) 
+-EOS M5 - 1920x1080 signal ok 
+
+Software on MacBook Pro (Retina, 13-inch, Late 2013)
+-Facetime (Cataline 10.15.5) working (!)
+-QuickTime Player working
+-VLC (macOS 3.0.11.1) - selecting webcam gadget fails on first try and reverts
+to the internal webcam, on second select webcam gadget -> facetime camera -> 
+webcam gadget to get it working.
+
+Things to work on
+=================
+Frame rate could be improved but streaming_maxpacket seems to be limited to 
+2048.  USB_Video_Class 1.1 states that 3072 bytes should work however setting 
+3072 causes a USB disconnect error. It could be a dwc2 issue or a webcam.c 
+issue.
+Bulk mode could also be another method to improve frame rates as it's not
+limited by the URB microframe period.
+If stream_maxpacket and bulk mode don't work using MJPEG instead or raw YUYV
+frames could work by reducing the frame sizes. This would require adding and
+encoder back to the MMAL.
