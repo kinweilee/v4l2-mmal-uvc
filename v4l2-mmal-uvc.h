@@ -93,63 +93,6 @@ enum buffer_fill_mode
 };
 
 
-//origijal yavta device
-struct device
-{
-  int fd;
-  int opened;
-  int fd2;
-  int opened2;
-
-  enum v4l2_buf_type type;
-  enum v4l2_memory memtype;
-  unsigned int nbufs;
-  struct buffer *buffers;
-
-  MMAL_COMPONENT_T *isp;
-  MMAL_COMPONENT_T *render;
-  MMAL_COMPONENT_T *encoder;
-  MMAL_POOL_T *isp_output_pool;
-  MMAL_POOL_T *render_pool;
-  MMAL_POOL_T *encode_pool;
-
-  MMAL_BOOL_T can_zero_copy;
-
-  /* V4L2 to MMAL interface */
-  MMAL_QUEUE_T *isp_queue;
-  MMAL_POOL_T *mmal_pool;
-  /* Encoded data */
-  MMAL_POOL_T *output_pool;
-
-
-
-  unsigned int width;
-  unsigned int height;
-  unsigned int fps;
-  unsigned int frame_time_usec;
-  uint32_t buffer_output_flags;
-  uint32_t timestamp_type;
-  struct timeval starttime;
-  int64_t lastpts;
-
-  MMAL_FOURCC_T dst_mmal_enc;
-
-  unsigned char num_planes;
-  struct v4l2_plane_pix_format plane_fmt[VIDEO_MAX_PLANES];
-
-  void *pattern[VIDEO_MAX_PLANES];
-  unsigned int patternsize[VIDEO_MAX_PLANES];
-
-  bool write_data_prefix;
-
-
-  VCOS_THREAD_T save_thread;
-  MMAL_QUEUE_T *save_queue;
-  int thread_quit;
-  FILE *raw_fd;
-  FILE *pts_fd;
-};
-
 
 /* Buffer representing one video frame */
 
@@ -171,6 +114,56 @@ struct mmal_buffer
   unsigned int vcsm_handle;
 };
 
+/* Represents a UVC based video output device */
+struct uvc_device
+{
+  // uvc device specific /
+  int uvc_fd;
+  int is_streaming;
+  //nint run_standalone;
+  char *uvc_devname;
+
+  // uvc control request specific //
+  struct uvc_streaming_control probe;
+  struct uvc_streaming_control commit;
+  int control;
+  struct uvc_request_data request_error_code;
+  unsigned int brightness_val;
+
+  // uvc buffer specific //
+  //enum io_method io;
+  enum v4l2_memory memtype;
+  struct buffer *mem;
+  
+  //struct buffer *dummy_buf;
+  unsigned int nbufs;
+  unsigned int fcc;
+  unsigned int width;
+  unsigned int height;
+
+  unsigned int bulk;
+  uint8_t color;
+  unsigned int imgsize;
+  void *imgdata;
+
+  // USB speed specific //
+  int mult;
+  int burst;
+  int maxpkt;
+  enum usb_device_speed speed;
+
+  // uvc specific flags //
+  int first_buffer_queued;
+  int uvc_shutdown_requested;
+  int uvc_streamon;
+  // uvc buffer queue and dequeue counters //
+  unsigned long long int qbuf_count;
+  unsigned long long int dqbuf_count;
+
+  // v4l2 device hook //
+  struct v4l2_device *vdev;
+};
+
 /* Represents a V4L2 based video capture device */
 struct v4l2_device
 {
@@ -181,6 +174,7 @@ struct v4l2_device
   int opened2;
   int is_streaming;
   char *v4l2_devname;
+  int mjpeg_fd;
   int counter;
   /* v4l2 buffer specific */
   struct buffer *mem; //store /dev/video0 buffer info
@@ -203,22 +197,33 @@ struct v4l2_device
   /* v4l2 buffer queue and dequeue counters */
   unsigned long long int qbuf_count;
   unsigned long long int dqbuf_count;
+  int bitrate;
 
   /* uvc device hook */
   struct uvc_device *udev;
 
   MMAL_FOURCC_T dst_mmal_enc;
   //mmal setup
-  MMAL_COMPONENT_T *isp;
   
   VCOS_THREAD_T save_thread;
   MMAL_QUEUE_T *save_queue;
   int thread_quit;
-  
-  MMAL_POOL_T *mmal_pool;
-  MMAL_POOL_T *output_pool;
-  
+
+  MMAL_COMPONENT_T *isp;
+  MMAL_COMPONENT_T *render;
+  MMAL_COMPONENT_T *encoder;
+  MMAL_POOL_T *isp_output_pool;
+  MMAL_POOL_T *render_pool;
+  MMAL_POOL_T *encode_pool;
+
   MMAL_BOOL_T can_zero_copy;
+
+  /* V4L2 to MMAL interface */
+  MMAL_QUEUE_T *isp_queue;
+  MMAL_POOL_T *mmal_pool;
+  /* Encoded data */
+  MMAL_POOL_T *output_pool;
+
 
   unsigned char num_planes;
   struct v4l2_plane_pix_format plane_fmt[VIDEO_MAX_PLANES];
