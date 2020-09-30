@@ -132,6 +132,10 @@ Software on MacBook Pro (Retina, 13-inch, Late 2013)
 to the internal webcam, on second select webcam gadget -> facetime camera -> 
 webcam gadget to get it working. VLC however has a large latency.
 
+Windows 10
+- Skype working use UVC Camera as input and MJPEG mode, YUYV didn't work
+- VLC doesn't work error 'Your input couldn't be opened'
+
 CPU usage is typically 45-50% using htop.
 
 Things to work on
