@@ -3311,7 +3311,7 @@ main (int argc, char *argv[])
     
     case 'z':
       info = v4l2_format_by_name (optarg);
-      if (info == NULL) video_set_format
+      if (info == NULL) {
         printf("Unsupported video format for V4L2 requested  %s\n", optarg);
         return 1;
       }
