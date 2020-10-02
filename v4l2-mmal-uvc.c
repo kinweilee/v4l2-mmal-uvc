@@ -3210,6 +3210,11 @@ main (int argc, char *argv[])
   //v4l2 setup parameters
   const struct v4l2_format_info *info;
   unsigned int pixelformat = V4L2_PIX_FMT_UYVY;
+  
+  int v4l2_width = 0;
+  int v4l2_height = 0;
+  
+  char *endptr;
 
   while ((opt = getopt (argc, argv, "b:df:hi:m:n:o:r:s:t:u:v:z:")) != -1) {
     switch (opt) {
@@ -3224,6 +3229,21 @@ main (int argc, char *argv[])
       }
 
       default_format = atoi (optarg);
+      break;
+    case 'g':
+      //set v4l2 frame size
+      //do_set_format = 1;
+      v4l2_width = strtol(optarg, &endptr, 10);
+      if (*endptr != 'x' || endptr == optarg) {
+        print("Invalid size '%s'\n", optarg);
+        return 1;
+      }
+      v4l2_height = strtol(endptr + 1, &endptr, 10);
+      if (*endptr != 0) {
+        print("Invalid size '%s'\n", optarg);
+        return 1;
+      }
+
       break;
 
     case 'h':
@@ -3291,7 +3311,7 @@ main (int argc, char *argv[])
     
     case 'z':
       info = v4l2_format_by_name (optarg);
-      if (info == NULL) {
+      if (info == NULL) video_set_format
         printf("Unsupported video format for V4L2 requested  %s\n", optarg);
         return 1;
       }
@@ -3306,11 +3326,11 @@ main (int argc, char *argv[])
   }
 
   {
-    /* Try to set the default format at the V4L2 video capture device as requested by the user.*/
+    // Try to set the default format at the V4L2 video capture device as //requested by the user. actually not setup here, use video_set_format//
     CLEAR (fmt);
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    fmt.fmt.pix.width = (default_resolution == 0) ? 640 : 1280;
-    fmt.fmt.pix.height = (default_resolution == 0) ? 360 : 720;
+    fmt.fmt.pix.width = v4l2_width;//(default_resolution == 0) ? 640 : 1280;
+    fmt.fmt.pix.height = v4l2_height;//(default_resolution == 0) ? 360 : 720;
     printf ("width %d, height %d\n", fmt.fmt.pix.width, fmt.fmt.pix.height);
     switch (0) {
     case 1:
@@ -3359,7 +3379,8 @@ main (int argc, char *argv[])
     vdev->udev = udev;
   }
 
-  /* Set parameters as passed by user. */
+  /* Set parameters as passed by user udev width height uses default_resolution
+  * settting, (vdev uses -g setting) */
   udev->width = (default_resolution == 0) ? 640 : 1280;
   udev->height = (default_resolution == 0) ? 360 : 720;
 
@@ -3390,7 +3411,6 @@ main (int argc, char *argv[])
     case V4L2_MEMORY_MMAP:
       vdev->memtype = V4L2_MEMORY_USERPTR;
       break;
-
     case V4L2_MEMORY_USERPTR:
       print ("set vdev to V4L2_MEMORY_MMAP\n");
       vdev->memtype = V4L2_MEMORY_MMAP;
@@ -3422,8 +3442,8 @@ main (int argc, char *argv[])
   unsigned int buftype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   enum v4l2_memory memtype = V4L2_MEMORY_MMAP;
   int vret;
-  //enum v4l2_field field = V4L2_FIELD_ANY;
-  enum v4l2_field field = V4L2_FIELD_INTERLACED; // for eos m
+  enum v4l2_field field = V4L2_FIELD_ANY;
+  //enum v4l2_field field = V4L2_FIELD_INTERLACED; // for eos m
   //field = v4l2_field_from_string
   bcm_host_init ();
   vdev->nbufs = vnbufs;
@@ -3436,8 +3456,10 @@ main (int argc, char *argv[])
   video_set_buf_type (vdev, vret);
 
   vdev->memtype = memtype;
-  //ret = video_set_format (vdev, 1280, 720, V4L2_PIX_FMT_UYVY, 0, 0, field, fmt_flags);	// eos m5 ok
-  ret = video_set_format (vdev, 720 , 480, V4L2_PIX_FMT_RGB24, 0, 0, V4L2_FIELD_INTERLACED, fmt_flags);	// eos m
+  //make user selectable dimensions and field type
+  ret = video_set_format (vdev, v4l2_width, v4l2_height, pixelformat, 0, 0, field, fmt_flags); // generic setup
+  //ret = video_set_format (vdev, 1280, 720, V4L2_PIX_FMT_UYVY, 0, 0, field, fmt_flags);  // eos m5 ok
+  //ret = video_set_format (vdev, 720 , 480, V4L2_PIX_FMT_RGB24, 0, 0, V4L2_FIELD_INTERLACED, fmt_flags); // eos m
 // rGB24 is need for interlaced
   if ( ret < 0 )
     printf("Cannot set %s to %c%c%c%c\n", vdev->v4l2_devname, pixfmtstr(pixelformat));
@@ -3532,3 +3554,4 @@ main (int argc, char *argv[])
 
   return 0;
 }
+
