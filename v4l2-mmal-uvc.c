@@ -61,8 +61,8 @@
 #endif
 
 //output image size fixed to 1280x720 
-#define WIDTH 1280
-#define HEIGHT 720
+/*#define WIDTH 1280
+#define HEIGHT 720*/
 #define MAX_PLANES 8
 int debug = 0;
 #define print(...) do { if (debug) printf(__VA_ARGS__); } while (0)
@@ -1607,7 +1607,6 @@ uvc_video_process (struct uvc_device *dev)
   }
 
   //if(dev->vdev->dq_ubuf_ok==false){ return 0;} 
-  time_me("uvc_video_process", dev->vdev);
   /*
    * Do not dequeue buffers from UVC side until there are atleast
    * 2 buffers available at UVC domain.
@@ -1631,6 +1630,7 @@ uvc_video_process (struct uvc_device *dev)
     return ret;
   }
   else {
+    time_me("uvc_video_process", dev->vdev);
     print ("UVC: dequeue ubuf okay\n");
     dev->vdev->dq_ubuf_ok = true;
   }
@@ -2909,15 +2909,15 @@ setup_mmal_comp (struct v4l2_device *dev, int nbufs)
     isp_output->buffer_num = 8;
   }
   else{
-    isp_output->format->encoding = MMAL_ENCODING_I420; // -f1
+    isp_output->format->encoding = MMAL_ENCODING_I420; // -f1 intermediate format
     isp_output->buffer_num = 3;
   }
   
-  isp_output->format->es->video.width = VCOS_ALIGN_UP (WIDTH, 32);
-  isp_output->format->es->video.height = VCOS_ALIGN_UP (HEIGHT, 16);
+  isp_output->format->es->video.width = VCOS_ALIGN_UP (dev->udev->width, 32);
+  isp_output->format->es->video.height = VCOS_ALIGN_UP (dev->udev->height, 16);
   
-  isp_output->format->es->video.crop.width = WIDTH;	//set output size
-  isp_output->format->es->video.crop.height = HEIGHT;
+  isp_output->format->es->video.crop.width = dev->udev->width; //WIDTH;	//set output size
+  isp_output->format->es->video.crop.height = dev->udev->height; //HEIGHT;
   
   while (isp_output->format->es->video.crop.width > 1920) {
     isp_output->format->es->video.crop.width >>= 1;
@@ -2950,11 +2950,11 @@ setup_mmal_comp (struct v4l2_device *dev, int nbufs)
     // Only supporting H264 at the moment
     encoder_output->format->encoding = MMAL_ENCODING_MJPEG;
     //encoder_output->format->encoding = MMAL_ENCODING_H264;
-    encoder_output->format->es->video.width = VCOS_ALIGN_UP (WIDTH, 32);
-    encoder_output->format->es->video.height = VCOS_ALIGN_UP (HEIGHT, 16);
+    encoder_output->format->es->video.width = VCOS_ALIGN_UP (dev->udev->width, 32);
+    encoder_output->format->es->video.height = VCOS_ALIGN_UP (dev->udev->height, 16);
 
-    encoder_output->format->es->video.crop.width = WIDTH;	//set output size
-    encoder_output->format->es->video.crop.height = HEIGHT;
+    encoder_output->format->es->video.crop.width = dev->udev->width;//WIDTH;	//set output size
+    encoder_output->format->es->video.crop.height = dev->udev->height;//HEIGHT;
 
     encoder_output->format->bitrate = dev->bitrate;//1500000;	//-b?
 
@@ -3161,13 +3161,14 @@ usage (const char *argv0)
 //  fprintf (stderr, " -d               Do not use any real V4L2 capture device\n");
   fprintf (stderr, " -f <format>    Select frame format\n\t"
 	   "0 = V4L2_PIX_FMT_YUYV\n\t" "1 = V4L2_PIX_FMT_MJPEG\n\t");
+  fprintf (stderr, " -g	1280x720 input device frame size\n");
   fprintf (stderr, " -h		Print this help screen and exit\n");
 //  fprintf (stderr, " -i image MJPEG image\n");
 //  fprintf (stderr, " -m               Streaming mult for ISOC (b/w 0 and 2)\n");
 //  fprintf (stderr, " -n               Number of Video buffers (b/w 2 and 32)\n");
 //  fprintf (stderr, " -o <IO method> Select UVC IO method:\n\t"
 //         "0 = MMAP\n\t" "1 = USER_PTR\n");
-  fprintf (stderr, " -r <resolution> Select frame resolution:\n\t"
+  fprintf (stderr, " -r <resolution> Select output frame resolution:\n\t"
 	   "0 = 480p, (720x480)\n\t" "1 = 720p, WXGA (1280x720)\n");
   fprintf (stderr, " -s <speed>	Select USB bus speed (b/w 0 and 2)\n\t"
 	   "0 = Full Speed (FS)\n\t"
@@ -3216,7 +3217,7 @@ main (int argc, char *argv[])
   
   char *endptr;
 
-  while ((opt = getopt (argc, argv, "b:df:hi:m:n:o:r:s:t:u:v:z:")) != -1) {
+  while ((opt = getopt (argc, argv, "b:df:g:hi:m:n:o:r:s:t:u:v:z:")) != -1) {
     switch (opt) {
     case 'b':
       bitrate = atoi (optarg);
@@ -3227,9 +3228,9 @@ main (int argc, char *argv[])
         usage (argv[0]);
         return 1;
       }
-
       default_format = atoi (optarg);
       break;
+
     case 'g':
       //set v4l2 frame size
       //do_set_format = 1;
@@ -3354,6 +3355,8 @@ main (int argc, char *argv[])
 
   vdev->v4l2_devname = v4l2_devname;
   vdev->bitrate = bitrate;
+  vdev->height = v4l2_height;
+  vdev->width = v4l2_width;
   /* Open the V4L2 device. but if useing loopback this could fail */
   ret = video_open (vdev, v4l2_devname);
   //ret = v4l2_open (&vdev, v4l2_devname, &fmt);
@@ -3381,8 +3384,20 @@ main (int argc, char *argv[])
 
   /* Set parameters as passed by user udev width height uses default_resolution
   * settting, (vdev uses -g setting) */
-  udev->width = (default_resolution == 0) ? 640 : 1280;
-  udev->height = (default_resolution == 0) ? 360 : 720;
+  switch (default_resolution) {
+  case 0:
+    udev->width = 640 ;
+    udev->height = 360 ;
+    break;
+  case 1:
+    udev->width = 1280;
+    udev->height =  720;
+    break;
+  case 2:
+    udev->width = 1920;
+    udev->height = 1080; 
+    break;
+  }
 
   switch (default_format) {
   case 1:
@@ -3442,8 +3457,8 @@ main (int argc, char *argv[])
   unsigned int buftype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   enum v4l2_memory memtype = V4L2_MEMORY_MMAP;
   int vret;
-  enum v4l2_field field = V4L2_FIELD_ANY;
-  //enum v4l2_field field = V4L2_FIELD_INTERLACED; // for eos m
+  //enum v4l2_field field = V4L2_FIELD_ANY;
+  enum v4l2_field field = V4L2_FIELD_INTERLACED; // for eos m
   //field = v4l2_field_from_string
   bcm_host_init ();
   vdev->nbufs = vnbufs;
