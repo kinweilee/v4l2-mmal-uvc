@@ -285,5 +285,5 @@ case "$OP" in
 	#echo "OK"
 	;;
     *)
-	echo "Usage : $0 {start mjpg|start yuyv|stop}"
+	echo "Usage : $0 {start mjpeg|start yuyv|stop}"
 esac
