@@ -32,22 +32,39 @@ incompatible with UVC gadget, which requires either  YUYV or MJPEG formatted dat
 By using the MMAL framework, supported by the Raspberry Pi Zero, hardware 
 conversion of UYVY/RG24 data to YUYV or MJPEG can be performed. 
 
+Prequisites
+===========
+Raspberry Pi Zero or Raspberry Pi Zero 2 W (other boards should also work)
+TC358743 based converter board
+Raspberry Pi OS Lite (Legacy) or Raspberry Pi OS (Legacy) with desktop. 
+Unfortunately this software is currently incompatible with Bullseye based 
+images from Raspberry Pi.
+
 Setup
 ======
-1. TC358743 must be setup up with the following commnads
+1. Use raspi-config to enable 'CAMERA' and 'I2C'
+
+2. Add to /boot/config.txt the following two lines:
+dtoverlay=tc358743,i2c_pins_28_29=1
+dtoverlay=dwc2
+
+3. Add to /boot/cmdline.txt after rootwait the following commands:
+modules-load=dwc2,libcomposite cmd=32M
+
+4. TC358743 must be setup up with the following commnads
 v4l2-ctl --set-edid=file=./1080P50EDID.txt --fix-edid-checksums 
 v4l2-ctl --query-dv-timings
 v4l2-ctl --set-dv-bt-timings query
 
-2. Setup the ConfigFS using the uvc-setup.sh script
+5. Setup the ConfigFS using the uvc-setup.sh script
 The UVC gadget can be used in either RAW YUYV or MJPEG mode. MJPEG will give
 better frame rates (30fps) but will use compressed images.
 
-2.1 Setup using YUYV
+6.1 Setup using YUYV
 sudo ./uvc-setup.sh start yuyv
 ./v4l2-mmal-uvc -v /dev/video0 -u /dev/video1 -n3 -f0  # -v is camera device -u is g_webcam device
 
-2.2 Setup using MJPEG
+6.2 Setup using MJPEG
 sudo ./uvc-setup.sh start mjpeg
 ./v4l2-mmal-uvc -v /dev/video0 -u /dev/video1 -n3 -f1
 
@@ -118,11 +135,12 @@ Test Setup
 Hardware
 -H2C-RPI0-B01 HDMI to CSI-2 Bridge using TC358743 (same foot print as Pi Zero)
 -Pi Zero W (4.19.122+ recompiled from source using rpi-4.19.y branch)
+-Pi Zero 2 W using stock Raspberry Pi OS Lite (Legacy)
 
 Input HDMI sources:
 -PC 1280x720 and 1920x1080 ok
 -EOS M - 720x480 interlaced signal needs code modification to use interlace mode
-(V4L2_FIELD_INTERLACED) and the source must be RGB24. 
+(V4L2_FIELD_INTERLACED) and the source must be RGB24. (use Magic Lantern for clean HDMI!)
 -EOS M5 - 1920x1080 signal ok 
 
 Software on MacBook Pro (Retina, 13-inch, Late 2013)
@@ -136,7 +154,8 @@ Windows 10
 - Skype working use UVC Camera as input and MJPEG mode, YUYV didn't work
 - VLC doesn't work error 'Your input couldn't be opened'
 
-CPU usage is typically 45-50% using htop.
+On Pi Zero (first version) CPU usage is typically 45-50% using htop.
+On Pi Zero 2 W CPU usage is less than 15% on any core.
 
 Things to work on
 ==================
@@ -145,3 +164,4 @@ Frame rate could be improved but streaming_maxpacket seems to be limited to
 3072 causes a USB disconnect error. It could be a dwc2 issue or a webcam.c 
 issue.
 Bulk mode cannot be used since f_uvc.c does not implement any bulk modes.
+uvc-setup.sh needs a clean up
